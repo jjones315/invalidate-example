@@ -1,59 +1,60 @@
-<script>
-	import Counter from './Counter.svelte';
-	import welcome from '$lib/images/svelte-welcome.webp';
-	import welcome_fallback from '$lib/images/svelte-welcome.png';
+<script lang="ts">
+	import { goto, invalidateAll } from '$app/navigation';
+	import { useItemsContext } from '$lib/context/itemsContext.svelte.js';
+	import type { Item } from '$lib/server/mock-data/store.js';
+
+	let text = $state('');
+
+	const itemsCtx = useItemsContext();
+
+	async function handleNewItemInline() {
+		const item = await createItem(text);
+		text = '';
+		if (item) {
+			console.log(`goto: /items/${item.id}/about`, "{ invalidateAll: true }");
+			goto(`/items/${item.id}/about`, { invalidateAll: true });
+		}
+	}
+
+	async function handleNewItemThen() {
+		const item = await createItem(text);
+		text = '';
+		if (item) {
+			console.log(`invalidateAll`);
+			invalidateAll().then(() => {
+				console.log(`goto: /items/${item.id}/about`, "invalidateAll().then(...)");
+				goto(`/items/${item.id}/about`);
+			});
+		}
+	}
+
+	async function createItem(text: string) {
+		return await fetch('/items', {
+			method: 'POST',
+			body: JSON.stringify({ text }),
+			headers: {
+				'Content-Type': 'application/json'
+			}
+		}).then(async (x) => (x.ok ? ((await x.json()) as Item) : undefined));
+	}
 </script>
 
-<svelte:head>
-	<title>Home</title>
-	<meta name="description" content="Svelte demo app" />
-</svelte:head>
+<div>
+	<div style="flex:1; display:flex; flex-direction:column;">
+		{#each itemsCtx.items as item (item.id)}
+			<a href="/items/{item.id}/about">Go To Item {item.text}</a>
+		{/each}
+	</div>
+	<div style="flex:1; width:400px; display:flex; flex-direction:column;">
+		<input bind:value={text} />
+		<div style="flex:1; display:flex; flex-direction:row;">
+			<button type="button" onclick={handleNewItemInline}>
+				Add Item ({'{ invalidateAll:true }'})
+			</button>
 
-<section>
-	<h1>
-		<span class="welcome">
-			<picture>
-				<source srcset={welcome} type="image/webp" />
-				<img src={welcome_fallback} alt="Welcome" />
-			</picture>
-		</span>
-
-		to your new<br />SvelteKit app
-	</h1>
-
-	<h2>
-		try editing <strong>src/routes/+page.svelte</strong>
-	</h2>
-
-	<Counter />
-</section>
-
-<style>
-	section {
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		flex: 0.6;
-	}
-
-	h1 {
-		width: 100%;
-	}
-
-	.welcome {
-		display: block;
-		position: relative;
-		width: 100%;
-		height: 0;
-		padding: 0 0 calc(100% * 495 / 2048) 0;
-	}
-
-	.welcome img {
-		position: absolute;
-		width: 100%;
-		height: 100%;
-		top: 0;
-		display: block;
-	}
-</style>
+			<button type="button" onclick={handleNewItemThen}>
+				Add Item invalidateAll().then(...)
+			</button>
+		</div>
+	</div>
+</div>
